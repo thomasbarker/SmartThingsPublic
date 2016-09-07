@@ -85,6 +85,11 @@ metadata {
     	standardTile("refresh", "device.power", width: 3, height: 2, inactiveLabel: false, decoration: "flat") {
         	state "default", label:'Refresh', action:"refresh.refresh", icon:"st.secondary.refresh-icon"
     	}
+        
+        standardTile("refreshBig", "device.power", width: 6, height: 2, inactiveLabel: false, decoration: "flat") {
+        	state "default", label:'Refresh', action:"refresh.refresh", icon:"st.secondary.refresh-icon"
+    	}
+        
     	standardTile("configure", "device.power", width: 3, height: 2, inactiveLabel: false, decoration: "flat") {
         	state "configure", label:'', action:"configure", icon:"st.secondary.configure"
     	}
@@ -96,6 +101,12 @@ metadata {
         standardTile("blankTile", "statusText", inactiveLabel: false, decoration: "flat", width: 1, height: 2) {
 			state "default", label:'', icon:"http://cdn.device-icons.smartthings.com/secondary/device-activity-tile@2x.png"
 		}    
+        
+        standardTile("blankRow", "statusText", inactiveLabel: false, decoration: "flat", width: 6, height: 2) {
+			state "default", label:''
+		}    
+       
+        
         valueTile("statusText", "statusText", inactiveLabel: false, decoration: "flat", width: 5, height: 1) {
 			state "statusText", label:'${currentValue}', backgroundColor:"#ffffff"
 		}
@@ -119,7 +130,7 @@ metadata {
 		}
           
         main (["powerDisp"])
-        details(["powerDisp", "blankTile", "statusText", "energyOne", "battery", "energyDisp", "energyTwo", "resetmin", "resetmax", "resetenergy", "reset", "refresh", "configure"])
+        details(["powerDisp", "blankTile", "statusText", "energyOne", "battery", "energyDisp", "energyTwo", "blankRow","refreshBig", "blankRow", "resetmin", "resetmax", "resetenergy", "reset", "refresh", "configure"])
         }
 
         preferences {
@@ -167,7 +178,7 @@ def updated() {
 }
 
 def parse(String description) {
-//    log.debug "Parse received ${description}"
+    log.debug "Parse received ${description}"
     def result = null
     def cmd = zwave.parse(description, [0x31: 1, 0x32: 1, 0x60: 3, 0x80: 1])
     if (cmd) {
@@ -177,19 +188,60 @@ def parse(String description) {
     def statusTextmsg = ""
 	statusTextmsg = "Min was ${device.currentState('powerOne')?.value}\nMax was ${device.currentState('powerTwo')?.value}"
     sendEvent("name":"statusText", "value":statusTextmsg)
-//    log.debug statusTextmsg
+    log.debug statusTextmsg
     return result
+}
+def zwaveEvent(physicalgraph.zwave.commands.sensormultilevelv1.SensorMultilevelReport  cmd)
+{
+    //Unhandled create SensorMultilevelReport(precision: 3, scale: 0, scaledSensorValue: 255.420, sensorType: 4, sensorValue: [0, 3, 229, 188], size: 4) 
+	if(cmd.sensorType == 4 && cmd.scale == 0 && cmd.precision == 3)
+    {    
+        def dispValue
+        def newValue
+        def timeString = new Date().format("MM-dd-yyyy h:mm a", location.timeZone)
+        newValue = cmd.scaledSensorValue
+    
+        newValue = Math.round(cmd.scaledSensorValue*100)/100
+    
+        if (newValue <= 0) {newValue = 1000}				// Don't want to see 0w or negative numbers as a valid minimum value (something isn't right with the meter)
+        if (newValue < 10000) 
+        {								// don't handle any wildly large readings due to firmware issues	
+            if (newValue != state.powerValue) 
+            {
+                dispValue = newValue+"w"
+                sendEvent(name: "powerDisp", value: dispValue as String, unit: "", displayed: false)
+                if (newValue < state.powerLow) {
+                    dispValue = newValue+"w"+" on "+timeString
+                    sendEvent(name: "powerOne", value: dispValue as String, unit: "", displayed: false)
+                    state.powerLow = newValue
+                }
+                if (newValue > state.powerHigh) {
+                    dispValue = newValue+"w"+" on "+timeString
+                    sendEvent(name: "powerTwo", value: dispValue as String, unit: "", displayed: false)
+                    state.powerHigh = newValue
+                }
+                state.powerValue = newValue
+                [name: "power", value: newValue, unit: "W", displayed: false]
+            }
+        }
+    }
+    else
+    {
+       log.debug "sensormultilevel Unhandled event ${cmd}"
+    }
 }
 
 def zwaveEvent(physicalgraph.zwave.commands.meterv1.MeterReport cmd) {
-    //log.debug "zwaveEvent received ${cmd}"
+    log.debug "zwaveEvent received ${cmd}"
     def dispValue
     def newValue
     def timeString = new Date().format("MM-dd-yyyy h:mm a", location.timeZone)
     if (cmd.meterType == 33) {
         if (cmd.scale == 0) {
+
             newValue = cmd.scaledMeterValue
-            if (newValue != state.energyValue) {
+        	log.debug "0 received $newValue"
+			if (newValue != state.energyValue) {
                 dispValue = String.format("%5.2f",newValue)+"\nkWh"
                 sendEvent(name: "energyDisp", value: dispValue as String, unit: "", displayed: false)
                 state.energyValue = newValue
@@ -200,6 +252,7 @@ def zwaveEvent(physicalgraph.zwave.commands.meterv1.MeterReport cmd) {
             }
         } else if (cmd.scale == 1) {
             newValue = cmd.scaledMeterValue
+            log.debug "1 received $newValue"
             if (newValue != state.energyValue) {
                 dispValue = String.format("%5.2f",newValue)+"\nkVAh"
                 sendEvent(name: "energyDisp", value: dispValue as String, unit: "", displayed: false)
@@ -209,6 +262,7 @@ def zwaveEvent(physicalgraph.zwave.commands.meterv1.MeterReport cmd) {
         }
         else if (cmd.scale==2) {                
             newValue = Math.round(cmd.scaledMeterValue*100)/100
+            log.debug "2 received $newValue"
             if (newValue <= 0) {newValue = 1000}				// Don't want to see 0w or negative numbers as a valid minimum value (something isn't right with the meter)
 			if (newValue < 10000) {								// don't handle any wildly large readings due to firmware issues	
 	            if (newValue != state.powerValue) {
@@ -243,12 +297,15 @@ def zwaveEvent(physicalgraph.zwave.commands.batteryv1.BatteryReport cmd) {
     } else {
         map.value = cmd.batteryLevel
         sendEvent(name: "battery", value: map.value as String, displayed: false)
+        log.debug "battery report: $cmd.batteryLevel"
     }
     return map
 }
 
 def zwaveEvent(physicalgraph.zwave.Command cmd) {
     // Handles all Z-Wave commands we aren't interested in
+
+    
     log.debug "Unhandled event ${cmd}"
     [:]
 }
@@ -381,38 +438,43 @@ def configure() {
         def secondsBattery = 3600
         log.debug "Setting secondsBattery to ${secondsBattery} (device default) because an invalid value was provided."
     }
-
+log.debug "OVERIDDEN - SEE CODE"
     def cmd = delayBetween([
 
- 	// Performs a complete factory reset.  Use this all by itself and comment out all others below.  Once reset, comment this line out and uncomment the others to go back to normal
-//  zwave.configurationV1.configurationSet(parameterNumber: 255, size: 4, scaledConfigurationValue: 1).format()
+	
 
-    // Send data based on a time interval (0), or based on a change in wattage (1).  0 is default and enables parameters 111, 112, and 113. 1 enables parameters 4 and 8.
-    zwave.configurationV1.configurationSet(parameterNumber: 3, size: 1, scaledConfigurationValue: reportType).format(),
+ 	// Performs a complete factory reset.  Use this all by itself and comment out all others below.  Once reset, comment this line out and uncomment the others to go back to normal
+  //zwave.configurationV1.configurationSet(parameterNumber: 255, size: 4, scaledConfigurationValue: 1).format()
+
+    // Send data based on a time interval (0), or based on a change in wattage (1).  0 is default and enables parameters 111, 112, and 113. 1 enables parameters 4 and 8. was reportType
+    zwave.configurationV1.configurationSet(parameterNumber: 3, size: 1, scaledConfigurationValue: 0).format(),
         
     // If parameter 3 is 1, don't send unless watts have changed by 50 <default> for the whole device.   
-    zwave.configurationV1.configurationSet(parameterNumber: 4, size: 2, scaledConfigurationValue: wattsChanged).format(),
+//    zwave.configurationV1.configurationSet(parameterNumber: 4, size: 2, scaledConfigurationValue: wattsChanged).format(),
         
     // If parameter 3 is 1, don't send unless watts have changed by 10% <default> for the whole device.        
-    zwave.configurationV1.configurationSet(parameterNumber: 8, size: 1, scaledConfigurationValue: wattsPercent).format(),
+//    zwave.configurationV1.configurationSet(parameterNumber: 8, size: 1, scaledConfigurationValue: wattsPercent).format(),
+
+	// Force KWH reporting when on battery
+	zwave.configurationV1.configurationSet(parameterNumber: 12, size: 1, scaledConfigurationValue: 1).format(),
 
 	// Defines the type of report sent for Reporting Group 1 for the whole device.  1->Battery Report, 4->Meter Report for Watt, 8->Meter Report for kWh
     zwave.configurationV1.configurationSet(parameterNumber: 101, size: 4, scaledConfigurationValue: 4).format(), //watts
 
-    // If parameter 3 is 0, report every XX Seconds (for Watts) for Reporting Group 1 for the whole device.
-	zwave.configurationV1.configurationSet(parameterNumber: 111, size: 4, scaledConfigurationValue: secondsWatts).format(),
+    // If parameter 3 is 0, report every XX Seconds (for Watts) for Reporting Group 1 for the whole device. was secondsWatts
+	zwave.configurationV1.configurationSet(parameterNumber: 111, size: 4, scaledConfigurationValue: 900).format(), //was 485
 
     // Defines the type of report sent for Reporting Group 2 for the whole device.  1->Battery Report, 4->Meter Report for Watt, 8->Meter Report for kWh
     zwave.configurationV1.configurationSet(parameterNumber: 102, size: 4, scaledConfigurationValue: 8).format(), //kWh
 
-    // If parameter 3 is 0, report every XX seconds (for kWh) for Reporting Group 2 for the whole device.
-	zwave.configurationV1.configurationSet(parameterNumber: 112, size: 4, scaledConfigurationValue: secondsKwh).format(),
+    // If parameter 3 is 0, report every XX seconds (for kWh) for Reporting Group 2 for the whole device. was secondsKwh
+	zwave.configurationV1.configurationSet(parameterNumber: 112, size: 4, scaledConfigurationValue: 900 ).format(),
 
 	// Defines the type of report sent for Reporting Group 3 for the whole device.  1->Battery Report, 4->Meter Report for Watt, 8->Meter Report for kWh
     zwave.configurationV1.configurationSet(parameterNumber: 103, size: 4, scaledConfigurationValue: 1).format(), //battery
     
-    // If parameter 3 is 0, report every XX seconds (for battery) for Reporting Group 2 for the whole device.    
-    zwave.configurationV1.configurationSet(parameterNumber: 113, size: 4, scaledConfigurationValue: secondsBattery).format()
+    // If parameter 3 is 0, report every XX seconds (for battery) for Reporting Group 2 for the whole device.    was secondsBattery
+    zwave.configurationV1.configurationSet(parameterNumber: 113, size: 4, scaledConfigurationValue: 900).format()
         
     ])
 
