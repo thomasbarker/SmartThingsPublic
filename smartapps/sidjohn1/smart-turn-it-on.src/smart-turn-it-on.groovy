@@ -17,9 +17,14 @@ definition(
 )
 
 preferences {
-	section("Turn on which device?"){
-		input "switchOne", "capability.switch",title:"Select Light", required: true, multiple: true
+	section("Turn on which device and auto turn off?"){
+		input "switchOne", "capability.switch",title:"Select Light", required: false, multiple: true
 	}
+    
+    section("Turn on which device but don't turn off?"){
+		input "switchTwo", "capability.switch",title:"Select Light", required: false, multiple: true
+	}
+    
     section("For Whom?") {
 		input "presenceOne", "capability.presenceSensor", title: "Select Person", required: true, multiple: true
 	}
@@ -58,8 +63,14 @@ log.debug "Start"
     def dayTwo = new Date().format("EEE");
 	if(dayCheck){
         def presenceTwo = presenceOne.latestValue("presence").contains("present")
-		if (presenceTwo) {
-        	switchOne.on()
+		if (presenceTwo) 
+        {
+        	if(switchOne)
+        		switchOne.on()
+            
+            if(switchTwo)
+            	switchTwo.on()
+                
 			def delay = timeTwo * 60
 			runIn(delay, "turnOff")
 		}   
@@ -68,6 +79,8 @@ log.debug "Start"
 
 
     
-def turnOff() {
-	switchOne.off()
+def turnOff() 
+{
+	if(switchOne)
+		switchOne.off()
 }
