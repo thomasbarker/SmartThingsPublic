@@ -118,14 +118,14 @@ preferences {
 		}
         
 		standardTile("fanMode", "device.thermostatFanMode", inactiveLabel: false) {
-			state "fanAuto", label:'${name}', action:"switchFanMode", icon: "st.Appliances.appliances11", backgroundColor: '#44b621'
-			state "fanOn", label:'${name}', action:"switchFanMode", icon: "st.Appliances.appliances11", backgroundColor: '#44b621'
-			state "fanCirculate", label:'${name}', action:"switchFanMode",  icon: "st.Appliances.appliances11", backgroundColor: '#44b621'
+			state "fanAuto", label:'Auto', action:"switchFanMode", icon: "st.Appliances.appliances11"//, backgroundColor: '#44b621'
+			state "fanOn", label:'On', action:"switchFanMode", icon: "st.Appliances.appliances11"//, backgroundColor: '#44b621'
+			//state "fanCirculate", label:'${name}', action:"switchFanMode",  icon: "st.Appliances.appliances11", backgroundColor: '#44b621'
 		}
 
    valueTile("coolingSetpoint", "device.coolingSetpoint", inactiveLabel: false) 
     	  {
-          state "default", label:'Cool\n${currentValue}°F', unit:"F",
+          state "default", label:'C:${currentValue}°F', unit:"F"/*,
            backgroundColors:
            [
             [value: 31, color: "#153591"],
@@ -135,12 +135,12 @@ preferences {
             [value: 84, color: "#f1d801"],
             [value: 95, color: "#d04e00"],
             [value: 96, color: "#bc2323"]
-          ]   
+          ]   */
         }
 
      valueTile("heatingSetpoint", "device.heatingSetpoint", inactiveLabel: false) 
     	{
-      state "default", label:'Heat\n${currentValue}°F', unit:"F",
+      state "default", label:'H:${currentValue}°F', unit:"F"/*,
        backgroundColors:
        [
         [value: 31, color: "#153591"],
@@ -150,7 +150,7 @@ preferences {
         [value: 84, color: "#f1d801"],
         [value: 95, color: "#d04e00"],
         [value: 96, color: "#bc2323"]
-      ]   
+      ]   */
     }
     
  
