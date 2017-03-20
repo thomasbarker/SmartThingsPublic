@@ -33,8 +33,11 @@ preferences {
         input "frontDoor", "capability.contactSensor", 
         title: "Which door", required: true, multiple: false //"open" "closed"
         
-        input "light", "capability.switch", required: true, multiple: true,
-            title: "Which lights?"
+        input "daytimelights", "capability.switch", required: true, multiple: true,
+            title: "Which daytime lights?"
+            
+        input "nighttimelights", "capability.switch", required: true, multiple: true,
+            title: "Which night time lights?"
     }
 
     section("Send Notifications?") {
@@ -51,6 +54,10 @@ preferences {
 
 private checkSunset()
 {
+	//return true;
+	// I now want the lights to come on regardless.
+    
+
 
 	def now = new Date()
 	def ssss = getSunriseAndSunset(sunsetOffset: "-00:30")
@@ -101,7 +108,7 @@ def initialize() {
 def contactHandler(evt) 
 {
     log.info evt
-    if("open" == evt.value && checkSunset())
+    if("open" == evt.value )//&& checkSunset())
     {
     	log.info "setting state to true"
         state.contactFirst = true
@@ -126,7 +133,11 @@ def motionHandler(evt)
   
   	log.info "turning light on"
     state.contactFirst = false
-    light*.on()
+    
+    if(checkSunset())
+    	nighttimelights*.on()
+    else
+    	daytimelights*.on()
   } 
   else
   {

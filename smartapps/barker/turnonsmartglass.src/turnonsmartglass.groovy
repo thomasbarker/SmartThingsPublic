@@ -1,18 +1,18 @@
 /**
- *  Turnonsmartglass
- *
- *  Copyright 2016 Tom
- *
- *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
- *  in compliance with the License. You may obtain a copy of the License at:
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
- *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
- *  for the specific language governing permissions and limitations under the License.
- *
- */
+*  Turnonsmartglass
+*
+*  Copyright 2016 Tom
+*
+*  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+*  in compliance with the License. You may obtain a copy of the License at:
+*
+*      http://www.apache.org/licenses/LICENSE-2.0
+*
+*  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
+*  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
+*  for the specific language governing permissions and limitations under the License.
+*
+*/
 definition(
     name: "Turnonsmartglass",
     namespace: "barker",
@@ -28,51 +28,49 @@ preferences {
         input "switches", "capability.switch", title: "Which lights to turn on?", multiple: true 
         input "offsetsunset", "number", title: "Turn off this many minutes before sunset"
         input "offsetsunrise", "number", title: "Turn on this many minutes before sunrise"
-        
+
     }
     section("For Whom?"){
-		input "people", "capability.presenceSensor", title: "Select Person", required: true, multiple: true
-	}
-    
-    	section( "Notifications" ) {
+        input "people", "capability.presenceSensor", title: "Select Person", required: true, multiple: true
+    }
+
+    section( "Notifications" ) {
         input("recipients", "contact", title: "Send notifications to") {
             input "sendPushMessage", "enum", title: "Send a push notification?", options: ["Yes", "No"], required: false
             input "phoneNumber", "phone", title: "Send a text message?", required: false
         }
-	}
-    
+    }
+
 }
 
 def installed() {
-log.debug "installed"
+    log.debug "installed"
     initialize()
 }
 
 def updated() {
-log.debug "updated"
+    log.debug "updated"
     initialize()
 }
 
 def initialize() {
     unsubscribe()
-	subscribe(location, "sunsetTime", sunsetTimeHandler) 
-    //subscribe(location, "sunriseTime", sunriseTimeHandler)
-    
+    //subscribe(location, "sunset", sunsetTimeHandler) 
+    //subscribe(location, "sunrise", sunriseTimeHandler)
+
     subscribe(people, "presence", presence)
 
 
     //schedule it to run today
     scheduleTurnOn(location.currentValue("sunsetTime"),location.currentValue("sunriseTime"))
-    
-    def presenceState = people.currentState("present")
-       
+
 }
 
 
 private peoplePresent()
 {   
-	def peoplePresent = 0
-     
+    def peoplePresent = 0
+
     // iterate over our people variable that we defined
     // in the preferences method
     for (person in people) 
@@ -80,15 +78,15 @@ private peoplePresent()
         if (person.currentPresence == "present") 
         {
             peoplePresent++
-                }
+        }
     }
     return peoplePresent
 }
 
 def presence(evt) {
-    
-	def peoplePresent = 0
-     
+
+    def peoplePresent = 0
+
     // iterate over our people variable that we defined
     // in the preferences method
     for (person in people) 
@@ -96,7 +94,7 @@ def presence(evt) {
         if (person.currentPresence == "present") 
         {
             peoplePresent++
-                }
+        }
     }
 
     if( state.previousPeoplePresent == 0 && peoplePresent > 0)
@@ -107,7 +105,7 @@ def presence(evt) {
 
 
 
-    
+
     state.previousPeoplePresent = peoplePresent
 
 }
@@ -116,12 +114,12 @@ def TurnOnTest()
 {
     def now = new Date()
     def ssss = getSunriseAndSunset()
-    
+
     // only work with time, then no issue of today or tomorrow
     if( (now.time >= (ssss.sunrise.time - (offsetsunrise * 60 * 1000))) && (now.time < (ssss.sunset.time - (offsetsunset * 60 * 1000))))
     {
-    	log.info "Turning on as someone came home"
-    	turnOn()
+        log.info "Turning on as someone came home"
+        switches.on()
     }
 }
 
@@ -130,18 +128,14 @@ def TurnOnTest()
 def sunsetTimeHandler(evt) {
     //when I find out the sunset time, schedule the lights to turn on with an offset
 
-    if(peoplePresent() > 0)
-    {
-    	scheduleTurnOn(location.currentValue("sunsetTime"),location.currentValue("sunriseTime"))
-	}
+    scheduleTurnOn(location.currentValue("sunsetTime"),location.currentValue("sunriseTime"))
+
 }
 def sunriseTimeHandler(evt) {
     //when I find out the sunset time, schedule the lights to turn on with an offset
-    
-    if(peoplePresent() > 0)
-    {
-    	scheduleTurnOn(location.currentValue("sunsetTime"),location.currentValue("sunriseTime"))
-	}
+
+    scheduleTurnOn(location.currentValue("sunsetTime"),location.currentValue("sunriseTime"))
+
 }
 
 
@@ -159,31 +153,43 @@ def scheduleTurnOn(sunsetString, sunriseString)
     log.debug "Scheduling sunset for: $timeBeforeSunset (sunset is $sunsetTime)"
     log.debug "Scheduling sunrise for: $timeBeforeSunrise (sunrise is $sunriseTime)"
 
-   
-	//unschedule()
+
+    unschedule()
 
     //schedule this to run one time
     runOnce(timeBeforeSunset, turnOff)
     runOnce(timeBeforeSunrise, turnOn)
-    
+
     // modify time to local and notify
     timeBeforeSunset.time = timeBeforeSunset.time + location.timeZone.getRawOffset() + location.timeZone.getDSTSavings()
     timeBeforeSunrise.time = timeBeforeSunrise.time + location.timeZone.getRawOffset() + location.timeZone.getDSTSavings()
     send("Scheduling sunset for: $timeBeforeSunset")
     send("Scheduling sunrise for: $timeBeforeSunrise")
-    
+
 }
 
-
-
 def turnOn() {
-    log.debug "turning on"
-    switches.on()
+    
+    if(peoplePresent() > 0)
+    {
+        log.debug "turning on"
+        switches.on()
+        send "turning on"
+    }
+    else
+    {
+        log.debug "turn on but no one around"
+		send "turn on but no one around"
+    }
+    scheduleTurnOn(location.currentValue("sunsetTime"),location.currentValue("sunriseTime"))
 }
 
 def turnOff() {
+
     log.debug "turning off"
     switches.off()
+
+    scheduleTurnOn(location.currentValue("sunsetTime"),location.currentValue("sunriseTime"))
 }
 
 private send(msg) {

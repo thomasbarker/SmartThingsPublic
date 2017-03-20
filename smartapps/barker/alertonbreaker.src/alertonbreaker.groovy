@@ -94,8 +94,9 @@ def checkTimeDifference()
 }
 
 def etachange(evt) {
-    
-    if(!state.lastupdate)
+    log.debug "Heard from socket, etachange"
+
+	if(!state.lastupdate)
     {
     	log.debug "setting date"
     	state.lastupdate = evt.value
